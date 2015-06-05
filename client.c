@@ -24,23 +24,6 @@ void main()
     InitialConnect();
 }
 
-//클라이언트의 소켓을 만들고, 방금 연결할 때 사용한 서버의 정보를 구조체에 저장한다.
-void buildSocket(int* socketDes, struct sockaddr_in* serverAddr, char* IPaddr, char* portNum)
-{
-    (*socketDes) = socket(PF_INET, SOCK_STREAM, 0);
-    if( (*socketDes) == 0)
-    {
-        printf("socket() error\n");
-        perror("socket");
-    }
-    
-    memset(serverAddr, 0, sizeof((*serverAddr)));
-    serverAddr->sin_family = AF_INET;
-    serverAddr->sin_addr.s_addr = inet_addr(IPaddr);
-    serverAddr->sin_port = htons(atoi(portNum));
-    
-}
-
 //처음 클라이언트 실행 시 커맨드 창. 서버 소켓과 연결하기 전.
 //ex) connect 127.0.0.1 12345로 연결하거나, quit로 프로그램 종료 가능
 void InitialConnect()
@@ -167,85 +150,99 @@ void SendCommand(char* IPaddr, char* portNum)
     }
 }
 
-//파일을 보내는 함수 (아직 미구현 상태)
+//클라이언트의 소켓을 만들고, 방금 연결할 때 사용한 서버의 정보를 구조체에 저장한다.
+void buildSocket(int* socketDes, struct sockaddr_in* serverAddr, char* IPaddr, char* portNum)
+{
+    (*socketDes) = socket(PF_INET, SOCK_STREAM, 0);
+    if( (*socketDes) == 0)
+    {
+        printf("socket() error\n");
+        perror("socket");
+    }
+    
+    memset(serverAddr, 0, sizeof((*serverAddr)));
+    serverAddr->sin_family = AF_INET;
+    serverAddr->sin_addr.s_addr = inet_addr(IPaddr);
+    serverAddr->sin_port = htons(atoi(portNum));
+    
+}
+
 /*
- void SendData()
- {
- struct sockaddr_in servaddr;
- int s, nbyte;
- char buf[MAXLINE+1];
- char filename[20];
- int filesize, fp, filenamesize ;
- int sread, total=0;
- 
- if(argc != 3)
- {
- printf("usage: %s ip_address port ", argv[0]);
- exit(0);
- }
- 
- if((s = socket(PF_INET, SOCK_STREAM, 0)) < 0)
- {
- perror("socket fail");
- exit(0);
- }
- 
- // 에코 서버의 소켓주소 구조체 작성
- bzero((char *)&servaddr, sizeof(servaddr));
- servaddr.sin_family = AF_INET;
- inet_pton(AF_INET, argv[1], &servaddr.sin_addr);
- servaddr.sin_port = htons(atoi(argv[2]));
- 
- // 연결요청
- if(connect(s, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
- {
- perror("connect fail");
- exit(0);
- }
- 
- printf("select file to send : ");
- if ( fgets(filename, sizeof(filename), stdin) == NULL )
- exit(0);
- 
- filenamesize = strlen(filename);
- filename[filenamesize-1] = 0;
- 
- if( (fp = open( filename, O_RDONLY )) < 0 )
- {
- printf( "open failed" );
- exit(0);
- }
- 
- send( s, filename, sizeof(filename), 0 );
- 
- filesize = lseek( fp, 0, SEEK_END );
- send( s, &filesize, sizeof(filesize), 0 );
- lseek(fp, 0, SEEK_SET );
- 
- while( total != filesize )
- {
- sread = read( fp, buf, 100 );
- printf( "file is sending now.. " );
- total += sread;
- buf[sread] = 0;
- send( s, buf, sread, 0 );
- printf( "processing :%4.2f%% ", total*100 / (float)filesize );
- //        usleep(10000);
- }
- printf( "file translating is completed " );
- printf( "filesize : %d, sending : %d ", filesize, total );
- 
- close(fp);
- close(s);
- return 0;
- }*/
+//파일을 보내는 함수 (아직 미구현 상태)
+void SendData(char* IPaddr, char* portNum)
+{
+    struct sockaddr_in servaddr;
+    int s, nbyte;
+    char buf[MAXLINE+1];
+    char filename[20];
+    int filesize, fp, filenamesize ;
+    int sread, total=0;
+    
+//    if((s = socket(PF_INET, SOCK_STREAM, 0)) < 0)
+//    {
+//        perror("socket fail");
+//        exit(0);
+//    }
+//    
+////    에코 서버의 소켓주소 구조체 작성
+//    bzero((char *)&servaddr, sizeof(servaddr));
+//    servaddr.sin_family = AF_INET;
+//    inet_pton(AF_INET, argv[1], &servaddr.sin_addr);
+//    servaddr.sin_port = htons(atoi(argv[2]));
+    
+    buildSocket(&s, servaddr, IPaddr, portNum);
+    
+//    연결요청
+    if(connect(s, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
+    {
+        perror("connect fail");
+        exit(0);
+    }
+    
+    printf("select file to send : ");
+    if ( fgets(filename, sizeof(filename), stdin) == NULL )
+        exit(0);
+    
+    filenamesize = strlen(filename);
+    filename[filenamesize-1] = 0;
+    
+    if( (fp = open( filename, O_RDONLY )) < 0 )
+    {
+        printf( "open failed" );
+        exit(0);
+    }
+    
+    send( s, filename, sizeof(filename), 0 );
+    
+    filesize = lseek( fp, 0, SEEK_END );
+    send( s, &filesize, sizeof(filesize), 0 );
+    lseek(fp, 0, SEEK_SET );
+    
+    while( total != filesize )
+    {
+        sread = read( fp, buf, 100 );
+        printf( "file is sending now.. " );
+        total += sread;
+        buf[sread] = 0;
+        send( s, buf, sread, 0 );
+        printf( "processing :%4.2f%% ", total*100 / (float)filesize );
+        usleep(10000);
+    }
+    printf( "file translating is completed " );
+    printf( "filesize : %d, sending : %d ", filesize, total );
+    
+    close(fp);
+    close(s);
+    return 0;
+}
+ */
 
 //파일을 받는 함수 (아직 미구현 상태)
 /*void ReceiveData()
  {
  struct sockaddr_in servaddr, cliaddr;
- int listen_sock, accp_sock, // 소켓번호
- addrlen = sizeof(cliaddr), // 주소구조체 길이
+ int listen_sock, accp_sock,  소켓번호
+ addrlen = sizeof(cliaddr),  주소구조체 길이
  nbyte, nbuf;
  char buf[MSGLEN];
  char cli_ip[20];
@@ -257,32 +254,32 @@ void SendCommand(char* IPaddr, char* portNum)
  printf("usage: %s port ", argv[0]);
  exit(0);
  }
- // 소켓 생성
+  소켓 생성
  if((listen_sock = socket(PF_INET, SOCK_STREAM, 0)) < 0) {
  perror("socket fail");
  exit(0);
  }
- // servaddr을 ''으로 초기화
+  servaddr을 ''으로 초기화
  bzero((char *)&servaddr, sizeof(servaddr));
- // servaddr 세팅
+  servaddr 세팅
  servaddr.sin_family = AF_INET;
  servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
  servaddr.sin_port = htons(atoi(argv[1]));
  
- // bind() 호출
+  bind() 호출
  if(bind(listen_sock, (struct sockaddr *)&servaddr,
  sizeof(servaddr)) < 0)
  {
  perror("bind fail");
  exit(0);
  }
- // 소켓을 수동 대기모드로 세팅
+  소켓을 수동 대기모드로 세팅
  listen(listen_sock, 5);
  
  while(1)
  {
  puts("서버가 연결요청을 기다림..");
- // 연결요청을 기다림
+  연결요청을 기다림
  accp_sock = accept(listen_sock,
  (struct sockaddr *)&cliaddr, &addrlen);
  
@@ -302,7 +299,7 @@ void SendCommand(char* IPaddr, char* portNum)
  recv( accp_sock, filename, sizeof(filename), 0 );
  printf( "%s ", filename );
  
- // recv( accp_sock, &filesize, sizeof(filesize), 0 );
+  recv( accp_sock, &filesize, sizeof(filesize), 0 );
  read( accp_sock, &filesize, sizeof(filesize) );
  printf( "%d ", filesize );
  
@@ -318,7 +315,7 @@ void SendCommand(char* IPaddr, char* portNum)
  write( fp, buf, sread );
  bzero( buf, sizeof(buf) );
  printf( "processing : %4.2f%% ", total*100 / (float)filesize );
- //            usleep(1000);
+             usleep(1000);
  
  }
  printf( "file traslating is completed " );
@@ -329,5 +326,5 @@ void SendCommand(char* IPaddr, char* portNum)
  }
  
  close( listen_sock );
- return 0; 
- }*/
+ return 0;
+ }
