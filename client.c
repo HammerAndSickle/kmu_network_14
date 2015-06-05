@@ -69,11 +69,16 @@ void SendCommand(char* IPaddr, char* portNum)
 {
     int cmdSocketDes;					//통신에 사용하는 소켓
     struct sockaddr_in serverAddr;		//연결할 서버의 정보가 저장될 것이다.
-    
+    	int nfound;    
+	int maxfd;	
+
     int nread;				//데이터의 크기
     char cmd_buffer[CMD_BUFFER_SIZE] = {0, };	//명령어 버퍼
     char fname[MSGLEN] = {0, };			//get이나 put으로 요구하는 파일 이름
     
+	struct timeval timeout = {5, 0};
+	fd_set rmask, xmask, mask;
+
     char* TOKEN = NULL;
     
     //토큰으로 분리해낸 아이피와 포트를 이용해 클라리언트 소켓을 만든다.
@@ -86,8 +91,16 @@ void SendCommand(char* IPaddr, char* portNum)
         perror("connect");
     }
     
+	FD_ZERO(&mask);
+	FD_SET(cmdSocketDes,&mask);
+	FD_SET(fileno(stdin), &mask);
+	maxfd = cmdSocketDes;
+
     while(1)
     {
+		rmask = mask;
+		nfound = select(FD_SETSIZE, &rmask, (fd_set*)0, (fd_set*)0, &timeout);
+
         printf("> ");
         
         //문자열을 입력받아 버퍼에 저장한다.
@@ -96,7 +109,8 @@ void SendCommand(char* IPaddr, char* portNum)
             printf("ERROR : wrong input\n");
             exit(1);
         }
-        
+       
+
         //fgets는 개행 문자(\n)까지 얻어오므로 이를 제거한다.
         cmd_buffer[strlen(cmd_buffer) - 1] = '\0';
         
@@ -112,10 +126,20 @@ void SendCommand(char* IPaddr, char* portNum)
             
             //공백 문자는 sendto로 제대로 전달되지 않는다. 다른 문자로 잠깐 치환해서 보내도록 한다.
             cmd_buffer[3] = '0';
-            
+       
+			if(FD_ISSET(fileno(stdin), &rmask))
+			{
+     
             //서버에게 명령어를 전달
             nread = write(cmdSocketDes, cmd_buffer, CMD_BUFFER_SIZE);
-            
+            		}
+			if(FD_ISSET(cmdSocketDes, &rmask)	{
+
+			nread = read(cmdSocketDes, cmd_buffer, sizeof(cmd_buffer));
+			cmd_buffer[nread] = '\0';
+		
+		}
+
             printf("[%s]을 받아오는 함수.\n", fname);
             //------------receive 함수 스레드로 실행 구현---------
         }
@@ -131,8 +155,22 @@ void SendCommand(char* IPaddr, char* portNum)
             cmd_buffer[3] = '0';
             
             //서버에게 명령어를 전달
+            if(FD_ISSET(fileno(stdin), &rmask))
+			{
+     
+            //서버에게 명령어를 전달
             nread = write(cmdSocketDes, cmd_buffer, CMD_BUFFER_SIZE);
-            
+            		}
+			if(FD_ISSET(cmdSocketDes, &rmask)	{
+
+			nread = read(cmdSocketDes, cmd_buffer, sizeof(cmd_buffer));
+			cmd_buffer[nread] = '\0';
+		
+		}
+
+		
+		}
+
             printf("[%s]을 보내는 함수.\n", fname);
             //------------send 함수 스레드로 실행 구현---------
         }
@@ -327,4 +365,4 @@ void SendData(char* IPaddr, char* portNum)
  
  close( listen_sock );
  return 0;
- }
+ }*/

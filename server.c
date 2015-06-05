@@ -36,7 +36,9 @@ void ReceiveCommand(char* initialPort)
 {
     int SocketDes;	//서버를 나타내는 소켓
     int cmdSocketDes;		//클라이언트와의 명령어 통신을 위한 새 소켓
-    
+	int nfound;    
+	int maxfd;	
+
     int nread;				//데이터의 크기
     char cmd_buffer[CMD_BUFFER_SIZE] = {0, };	//명령어 버퍼
     char fname[MSGLEN] = {0, };			//get이나 put으로 요구하는 파일 이름
@@ -44,34 +46,47 @@ void ReceiveCommand(char* initialPort)
     struct sockaddr_in serverAddr;		//새로운 데이터 소켓을 위한 서버 자신의 주소
     struct sockaddr_in clientAddr;		//명령어 연결을 위한 클라이언트  소켓
     socklen_t client_addr_size;			//상대방 주소
-    
+   
+	struct timeval timeout = {5, 0};
+	fd_set rmask, xmask, mask;
+ 
     client_addr_size = sizeof(clientAddr);
-    
+   
     //주어진 포트 번호로 명령어 전달용 소켓을 만든다. 클라이언트들은 일단 여기에 접속할 것.
-    socketAndBind(&serverSocketDes, &serverAddr, initialPort);
+    socketAndBind(&SocketDes, &serverAddr, initialPort);
     
     //이제 클라이언트들의 명령을 받아 처리한다.
     printf("* 서버가 연결요청을 기다림..\n");
     
     //클라이언트들의 접속을 기다린다.
-    if(listen(serverSocketDes,  CLIENTS_NUM) == -1)
+    if(listen(SocketDes,  SOMAXCONN) == -1)
     {
         printf("listen() error\n");
         perror("listen");
     }
     
-    //클라이언트의 연결을 받아들인다.
-    cmdSocketDes = accept(serverSocketDes, (struct sockaddr *)&clientAddr, &client_addr_size);
-    
-    if(cmdSocketDes < 0)
-    {
-        perror("accept fail");
-        exit(0);
-    }
-    
-    
-    while(1)
-    {
+	FD_ZERO(&mask);
+	FD_SET(SocketDes,&mask);
+	FD_SET(fileno(stdin), &mask);
+	maxfd = SocketDes;
+
+	while(1)
+	{
+		rmask = mask;
+		nfound = select(maxfd+1, &rmask, (fd_set*)0, (fd_set*)0, &timeout);
+		
+		if(FD_ISSET(SocketDes, &rmask))
+		{
+			client_addr_size = sizeof(clientAddr);
+			cmdSocketDes = accept(SocketDes, (struct sockaddr*)&clientAddr, (socklen_t*)&client_addr_size);
+
+			FD_SET(cmdSocketDes, &mask);
+			if(cmdSocketDes > maxfd) maxfd = cmdSocketDes;
+
+			FD_CLR(SocketDes, &rmask);
+		}
+
+
         
         
         //명령어를 받아온다. 이를 해석한다.
