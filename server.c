@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -6,6 +7,10 @@
 #include <string.h>
 #include <time.h>
 #include <pthread.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <errno.h>
+#include <ctype.h>
 
 #define CLIENTS_NUM 5
 #define USABLE_THREADS 100
@@ -13,129 +18,126 @@
 #define CMD_BUFFER_SIZE 128
 #define FILE_BUFFER_SIZE 2000
 
-void socketAndBind(int* socketDes, struct sockaddr_in* serverAddr, char* portNum);
-void ReceiveCommand(char* initialPort);
 void ReceiveData();
 void SendData();
 
-
-void main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
-    if(argc != 2)
-    {
-        printf("%s port\n", argv[0]);
-        return;
+    struct servent *servp;
+    struct sockaddr_in server, remote;
+    int request_sock, new_sock;
+    int nfound, fd, maxfd, bytesread, addrlen;
+    fd_set rmask, mask;
+    static struct timeval timeout = { 5, 0 }; /* 5 seconds */
+	char fname[128];
+    
+    char buf[BUFSIZ];
+    if (argc != 2) {
+        (void) fprintf(stderr,"usage: %s service|port\n",argv[0]);
+        exit(1);
     }
-    
-    ReceiveCommand(argv[1]);
-    
-}
-
-//명령어를 입력받아 처리해 줄 함수이다. InitialPorst는 명령어 처리 소켓의 포트 번호이다
-void ReceiveCommand(char* initialPort)
-{
-    int SocketDes;	//서버를 나타내는 소켓
-    int cmdSocketDes;		//클라이언트와의 명령어 통신을 위한 새 소켓
-	int nfound;    
-	int maxfd;	
-
-    int nread;				//데이터의 크기
-    char cmd_buffer[CMD_BUFFER_SIZE] = {0, };	//명령어 버퍼
-    char fname[MSGLEN] = {0, };			//get이나 put으로 요구하는 파일 이름
-    
-    struct sockaddr_in serverAddr;		//새로운 데이터 소켓을 위한 서버 자신의 주소
-    struct sockaddr_in clientAddr;		//명령어 연결을 위한 클라이언트  소켓
-    socklen_t client_addr_size;			//상대방 주소
-   
-	struct timeval timeout = {5, 0};
-	fd_set rmask, xmask, mask;
- 
-    client_addr_size = sizeof(clientAddr);
-   
-    //주어진 포트 번호로 명령어 전달용 소켓을 만든다. 클라이언트들은 일단 여기에 접속할 것.
-    socketAndBind(&SocketDes, &serverAddr, initialPort);
-    
-    //이제 클라이언트들의 명령을 받아 처리한다.
-    printf("* 서버가 연결요청을 기다림..\n");
-    
-    //클라이언트들의 접속을 기다린다.
-    if(listen(SocketDes,  SOMAXCONN) == -1)
-    {
-        printf("listen() error\n");
+    if ((request_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
+        perror("socket");
+        exit(1);
+    }
+    if (isdigit(argv[1][0])) {
+        static struct servent s;
+        servp = &s;
+        s.s_port = htons((u_short)atoi(argv[1]));
+    } else if ((servp = getservbyname(argv[1], "tcp")) == 0) {
+        fprintf(stderr,"%s: unknown service\n", "tcp");
+        exit(1);
+    }
+    memset((void *) &server, 0, sizeof server);
+    server.sin_family = AF_INET;
+    server.sin_addr.s_addr = INADDR_ANY;
+    server.sin_port = servp->s_port;
+    if (bind(request_sock, (struct sockaddr *)&server, sizeof server) < 0) {
+        perror("bind");
+        exit(1);
+    }
+    if (listen(request_sock, SOMAXCONN) < 0) {
         perror("listen");
+        exit(1);
     }
-    
-	FD_ZERO(&mask);
-	FD_SET(SocketDes,&mask);
-	FD_SET(fileno(stdin), &mask);
-	maxfd = SocketDes;
+    FD_ZERO(&mask);
+    FD_SET(request_sock, &mask);
+    maxfd = request_sock;
+    for (;;) {
+        rmask = mask;
+        nfound = select(maxfd+1, &rmask, (fd_set *)0, (fd_set *)0, &timeout);
+        if (nfound < 0) {
+            if (errno == EINTR) {
+                printf("interrupted system call\n");
+                continue;
+            }
+            /* something is very wrong! */
+            perror("select");
+            exit(1);
+        }
+        if (FD_ISSET(request_sock, &rmask)) {
+            /* a new connection is available on the connetion socket */
+            addrlen = sizeof(remote);
+            new_sock = accept(request_sock,
+                              (struct sockaddr *)&remote, (socklen_t*) &addrlen);
+            if (new_sock < 0) {
+                perror("accept");
+                exit(1);
+            }
+            printf("connection from host %s, port %d, socket %d\n",
+                   inet_ntoa(remote.sin_addr), ntohs(remote.sin_port),
+                   new_sock);
+            FD_SET(new_sock, &mask);
+            if (new_sock > maxfd)
+                maxfd = new_sock;
+            FD_CLR(request_sock, &rmask);
+        }
+        for (fd=0; fd <= maxfd ; fd++) {
+            /* look for other sockets that have data available */
+            if (FD_ISSET(fd, &rmask)) {
+                /* process the data */
+                bytesread = read(fd, buf, sizeof buf - 1);
 
-	while(1)
-	{
-		rmask = mask;
-		nfound = select(maxfd+1, &rmask, (fd_set*)0, (fd_set*)0, &timeout);
-		
-		if(FD_ISSET(SocketDes, &rmask))
-		{
-			client_addr_size = sizeof(clientAddr);
-			cmdSocketDes = accept(SocketDes, (struct sockaddr*)&clientAddr, (socklen_t*)&client_addr_size);
-
-			FD_SET(cmdSocketDes, &mask);
-			if(cmdSocketDes > maxfd) maxfd = cmdSocketDes;
-
-			FD_CLR(SocketDes, &rmask);
-		}
-
-
-        
-        
-        //명령어를 받아온다. 이를 해석한다.
-        nread = read(cmdSocketDes, cmd_buffer, CMD_BUFFER_SIZE);
-        cmd_buffer[nread] = '\0';
-        
-        
-        //get [filename]이라면, filename 추출 후 파일을 클라이언트에게 보내준다.
-        if(strncmp(cmd_buffer, "get", 3) == 0)
-        {
-            strcpy(fname, cmd_buffer + 4); //파일명 추출
+				//get [filename]이라면, filename 추출 후 파일을 클라이언트에게 보내준다.
+       	 if(strncmp(buf, "get", 3) == 0)
+		        {
+            strcpy(fname, buf + 4); //파일명 추출
             printf("[%s]을 보내주는 함수.\n", fname);
             //------------send 함수 스레드로 실행 구현---------
             
-        }
+        		}
         
         //put [filename]이라면, filename 추출 후 파일을 클라이언트에게서 받는다.
-        if(strncmp(cmd_buffer, "put", 3) == 0)
-        {
-            strcpy(fname, cmd_buffer + 4); //파일명 추출
+   	     if(strncmp(buf, "put", 3) == 0)
+      		  {
+            strcpy(fname, buf + 4); //파일명 추출
             printf("[%s]을 받는 함수.\n", fname);
             //------------receive 함수 스레드로 실행 구현--------
-        }
-        //이제 방금 연결 소켓은 닫아버린다.
-        //close(cmdSocketDes);
-    }
-}
+     		   }
 
-//소켓구조체와 소켓 디스크립터에 주어진 포트 번호를 할당해 소켓을 만들 바인딩시킨다.
-void socketAndBind(int* socketDes, struct sockaddr_in* serverAddr, char* portNum)
-{
-    (*socketDes) = socket(PF_INET, SOCK_STREAM, 0);
-    if( (*socketDes) == 0)
-    {
-        printf("socket() error\n");
-        perror("socket");
+
+                if (bytesread<0) {
+                    perror("read");
+                    /* fall through */
+                }
+                if (bytesread<=0) {
+                    printf("server: end of file on %d\n",fd);
+                    FD_CLR(fd, &mask);
+                    if (close(fd)) perror("close");
+                    continue;
+                }
+                buf[bytesread] = '\0';
+                printf("%s: %d bytes from %d: %s\n",
+                       argv[0], bytesread, fd, buf);
+                /* echo it back */
+                if (write(fd, buf, bytesread)!=bytesread)
+                    perror("echo");
+            }
+        }
     }
-    
-    memset(serverAddr, 0, sizeof((*serverAddr)));
-    serverAddr->sin_family = AF_INET;
-    serverAddr->sin_addr.s_addr = htonl(INADDR_ANY);
-    serverAddr->sin_port = htons(atoi(portNum));
-    
-    if(bind((*socketDes), (struct sockaddr*)serverAddr, sizeof((*serverAddr))) == -1)
-    {
-        printf("bind() error\n");
-        perror("bind");
-    }
-}
+} /* main - server.c */
+
+
 /*
 //파일을 받는 함수 (아직 미구현 상태)
 void ReceiveData(char* portNum)
