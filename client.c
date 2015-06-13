@@ -8,6 +8,7 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <linux/kernel.h>
 
 //
 #define DEFAULT_SPEED 20
@@ -40,6 +41,9 @@ int main(int argc, char *argv[])
     char fname[MSGLEN] = {0, };
     int nfound, bytesread;
     char tempStr[64] = {0, };
+    char portNum[10] = "temp";
+    char hostNum[10] ;
+    char command[10] ;
 
     threadArgs args[USABLE_THREADS];   //arguments for thread
     pthread_t threads[USABLE_THREADS]; //threads
@@ -53,27 +57,55 @@ int main(int argc, char *argv[])
     int getSpeed = DEFAULT_SPEED;
     int putSpeed = DEFAULT_SPEED;
 
-    if (argc != 3) {
-        (void) fprintf(stderr,"usage: %s service|port host\n",argv[0]);
-        exit(1);
-    }
+    // if (argc != 3) {
+    //     (void) fprintf(stderr,"usage: %s service|port host\n",argv[0]);
+    //     exit(1);
+    // }
     if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
         perror("socket");
         exit(1);
     }
 
-    if (isdigit(argv[1][0])) {
-        static struct servent s;
-        servp = &s;
-        s.s_port = htons((u_short)atoi(argv[1]));
-    } else if ((servp = getservbyname(argv[1], "tcp")) == 0) {
-        fprintf(stderr,"%s: unknown service\n",atoi(argv[1]));
-        exit(1);
+    for (;;)
+    {
+        fprintf(stderr, ">");
+        scanf("%s",command);
+
+        if ( strncmp(command, "quit", 4) == 0 )
+            exit(0);
+        else if ( strncmp(command, "connect", 7) == 0)
+        {
+            fprintf(stderr, "put in host : ");
+            scanf("%s", hostNum);
+            if ((hostp = gethostbyname(hostNum)) == 0) 
+            {
+            fprintf(stderr,"%s: unknown host\n",argv[2]);
+            exit(1);
+            }
+
+            while (!isdigit(portNum[0]))
+            {
+                fprintf(stderr, "put in port number : ");
+                scanf("%s", portNum);
+            }
+            static struct servent s;
+            servp = &s;
+            s.s_port = htons((u_short)atoi(argv[1]));
+            break;
+        }
     }
-    if ((hostp = gethostbyname(argv[2])) == 0) {
-        fprintf(stderr,"%s: unknown host\n",argv[2]);
-        exit(1);
-    }
+    // if (isdigit(argv[1][0])) {
+    //     static struct servent s;
+    //     servp = &s;
+    //     s.s_port = htons((u_short)atoi(argv[1]));
+    // } else if ((servp = getservbyname(argv[1], "tcp")) == 0) {
+    //     fprintf(stderr,"%s: unknown service\n",atoi(argv[1]));
+    //     exit(1);
+    // }
+    // if ((hostp = gethostbyname(argv[2])) == 0) {
+    //     fprintf(stderr,"%s: unknown host\n",argv[2]);
+    //     exit(1);
+    // }
     memset((void *) &server, 0, sizeof server);
     server.sin_family = AF_INET;
     memcpy((void *) &server.sin_addr, hostp->h_addr, hostp->h_length);
@@ -99,8 +131,8 @@ int main(int argc, char *argv[])
             exit(1);
         }
         if (FD_ISSET(fileno(stdin), &rmask)) {
-
-            printf(">");
+            fflush(stdout);
+            fprintf(stderr, ">");
 
             /* data from keyboard */
             if (!fgets(buf, sizeof buf, stdin)) {
@@ -110,6 +142,9 @@ int main(int argc, char *argv[])
                 }
                 exit(0);
             }
+
+            if ( strncmp(buf, "quit", 4) == 0)
+                exit(0);
 
             buf[(strlen(buf) - 1)] = '\0';
 
@@ -321,7 +356,7 @@ void* ReceiveData(void* p)
 
  void* SendData(void *p)
  {
-struct sockaddr_in servaddr;
+    struct sockaddr_in servaddr;
     int listen_sock, // 소켓번호
     nbyte, nbuf;
     char* buf = (char*)calloc(FILE_BUFFER_SIZE, sizeof(char));
@@ -348,15 +383,15 @@ struct sockaddr_in servaddr;
     //nKB means 1024*n Bytes
     BLOCK = 1024 * BLOCK;
 
-printf("newport : %d, filename : %s, speed : %d, IP : %s\n", portNum, filename, BLOCK/1024, serverIP);
+    printf("newport : %d, filename : %s, speed : %d, IP : %s\n", portNum, filename, BLOCK/1024, serverIP);
 
-sleep(1);
+    sleep(1);
 
     if((listen_sock = socket(PF_INET, SOCK_STREAM, 0)) < 0)
     {
      perror("socket fail");
      exit(0);
-     }
+    }
  
      // 에코 서버의 소켓주소 구조체 작성
      bzero((char *)&servaddr, sizeof(servaddr));
@@ -373,51 +408,49 @@ sleep(1);
 
 
 
- if( (fp = fopen( filename, "rb" )) < 0 )
- {
- printf( "open failed" );
- exit(0);
- }
+    if( (fp = fopen( filename, "rb" )) < 0 )
+    {
+    printf( "open failed" );
+    exit(0);
+    }
  
- fseek( fp, 0L, SEEK_END );
- filesize = ftell(fp);   //그 포인터 값이 바로 파일 크기이다.
- fseek(fp, 0L, SEEK_SET );
+    fseek( fp, 0L, SEEK_END );
+    filesize = ftell(fp);   //그 포인터 값이 바로 파일 크기이다.
+    fseek(fp, 0L, SEEK_SET );
 
-printf("filename : %s, filesize : %d B\n", filename, filesize);
+    printf("filename : %s, filesize : %d B\n", filename, filesize);
 
- write( listen_sock, &filesize, sizeof(filesize));
+    write( listen_sock, &filesize, sizeof(filesize));
  
- while(!feof(fp))
- {
+    while(!feof(fp))
+    {
 
- sread = fread( buf, 1, BLOCK, fp );
+        sread = fread( buf, 1, BLOCK, fp );
 
-if(sread <= 0)
-{
-    break;
-}
+        if(sread <= 0)
+        {
+            break;
+        }
 
- total += sread;
- buf[sread] = 0;
- write( listen_sock, buf, sread);
- }
+        total += sread;
+        buf[sread] = 0;
+        write( listen_sock, buf, sread);
+    }
  
- //if receiver got "endoffile", it will escape receiving loop
- //strcpy(buf, "endoffile");
-//write(listen_sock, buf, strlen("endoffile"));
+    //if receiver got "endoffile", it will escape receiving loop
+    //strcpy(buf, "endoffile");
+    //write(listen_sock, buf, strlen("endoffile"));
 
+    printf( "file translating is completed == " );
+    printf( "filesize : %d, sending : %d \n", filesize, total );
 
- fclose(fp);
- close(listen_sock);
+    fclose(fp);
+    close(listen_sock);
 
-printf( "file translating is completed == " );
- printf( "filesize : %d, sending : %d ", filesize, total );
+    (*threadIdx) = (*threadIdx) - 1;
 
+    free(buf);
 
- (*threadIdx) = (*threadIdx) - 1;
-
-free(buf);
-
- return 0;
+    return 0;
 
 }
