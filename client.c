@@ -13,7 +13,7 @@
 #define DEFAULT_SPEED 20
 #define USABLE_THREADS 500
 #define MSGLEN 128
-#define FILE_BUFFER_SIZE 2000
+#define FILE_BUFFER_SIZE (1024*1000)
 
 //스레드를 실행할 때, 매개변수로 넣을 구조체.
 typedef struct threadArgs
@@ -213,7 +213,7 @@ void* ReceiveData(void* p)
     struct sockaddr_in servaddr;
     int listen_sock, // 소켓번호
     nbyte, nbuf;
-    char buf[FILE_BUFFER_SIZE];
+    char* buf = (char*)calloc(FILE_BUFFER_SIZE, sizeof(char));
     char cli_ip[20];
     char filename[20];
     int filesize=0;
@@ -293,6 +293,8 @@ void* ReceiveData(void* p)
 
     (*threadIdx) = (*threadIdx) - 1;
 
+    free(buf);
+
     return 0;
 }
  
@@ -306,7 +308,7 @@ void* ReceiveData(void* p)
 struct sockaddr_in servaddr;
     int listen_sock, // 소켓번호
     nbyte, nbuf;
-    char buf[FILE_BUFFER_SIZE];
+    char* buf = (char*)calloc(FILE_BUFFER_SIZE, sizeof(char));
     char cli_ip[20];
     char filename[20];
     int filesize=0;
@@ -369,7 +371,6 @@ printf("filename : %s, filesize : %d B\n", filename, filesize);
  
  while( total != filesize )
  {
-sleep(1);
  sread = fread( buf, 1, BLOCK, fp );
  printf( "file is sending now.. " );
  total += sread;
@@ -385,6 +386,9 @@ sleep(1);
  close(listen_sock);
 
  (*threadIdx) = (*threadIdx) - 1;
+
+free(buf);
+
  return 0;
 
 }

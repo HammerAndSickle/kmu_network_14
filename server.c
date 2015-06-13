@@ -15,7 +15,7 @@
 #define CLIENTS_NUM 5
 #define USABLE_THREADS 500
 #define MSGLEN 128
-#define FILE_BUFFER_SIZE 2000
+#define FILE_BUFFER_SIZE (1024*1000)
 
 //
 typedef struct tranSpeed
@@ -251,7 +251,7 @@ void* ReceiveData(void* p)
 int addrlen = sizeof(cliaddr);
 
  int listen_sock, accp_sock, nbyte;
- char buf[FILE_BUFFER_SIZE];
+char* buf = (char*)calloc(FILE_BUFFER_SIZE, sizeof(char));
  char filename[20];
  int filesize, filenamesize ;
 
@@ -314,7 +314,6 @@ listen(listen_sock, 5);
         printf("processing : ");
         while( total != filesize )
         {
-            sleep(1);
             sread = recv( accp_sock, buf, BLOCK, 0 );
 //            printf( "file is receiving now.. " );
             total += sread;
@@ -331,6 +330,9 @@ listen(listen_sock, 5);
         close(listen_sock);
 
         (*threadIdx) = (*threadIdx) - 1;
+
+        free(buf);
+
         return 0;
 
 
@@ -348,7 +350,7 @@ listen(listen_sock, 5);
 int addrlen = sizeof(cliaddr);
 
  int listen_sock, accp_sock, nbyte;
- char buf[FILE_BUFFER_SIZE];
+ char* buf = (char*)calloc(FILE_BUFFER_SIZE, sizeof(char));
  char filename[20];
  int filesize, filenamesize ;
 
@@ -426,6 +428,9 @@ printf("filename : %s, filesize : %d B\n", filename, filesize);
  close(listen_sock);
 
  (*threadIdx) = (*threadIdx) - 1;
+
+free(buf);
+
  return 0;
 
 
