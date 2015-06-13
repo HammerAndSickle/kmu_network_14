@@ -219,6 +219,8 @@ void* ReceiveData(void* p)
     int filesize=0;
     int total=0, sread;
 
+    int finished = 0;       //finished = 1 means, file receving loop is to be finished
+
     FILE* fp;
 
     char serverIP[MSGLEN] = {0, };
@@ -274,20 +276,32 @@ void* ReceiveData(void* p)
 
 
         printf("processing : ");
-        while( total != filesize )
+        while(!finished)
         {
             sread = recv( listen_sock, buf, BLOCK, 0 );
 //            printf( "file is receiving now.. " );
+
+
+            //만일, 파일이 모두 전송되어서 마지막 메시지가 온 것이라면 무조건 종료.
+            if(!strncmp(buf, "endoffile", 9)) 
+            {
+                    printf("Sucessfully transferred.\n");
+                    fclose(fp);      //stream 닫기
+                      total = filesize;  //다 받은 것이나 마찬가지.
+                     finished = 1;       //이제 모든 루프를 끝낸다
+                     break;          //while문 빠져나가기
+
+            }
+
             total += sread;
             buf[sread] = 0;
             fwrite( buf, 1, sread, fp);
             bzero( buf, sizeof(buf) );
-            printf( "processing : %4.2f%% ", total*100 / (float)filesize );
+            //printf( "processing : %4.2f%% ", total*100 / (float)filesize );
 
             
         }
 
-        fclose(fp);
         close(listen_sock);
 
 
@@ -369,19 +383,26 @@ printf("filename : %s, filesize : %d B\n", filename, filesize);
 
  send( listen_sock, &filesize, sizeof(filesize), 0 );
  
- while( total != filesize )
+ while(!feof(fp))
  {
  sread = fread( buf, 1, BLOCK, fp );
- printf( "file is sending now.. " );
+ //printf( "file is sending now.. " );
  total += sread;
  buf[sread] = 0;
  send( listen_sock, buf, sread, 0 );
- printf( "processing :%4.2f%% ", total*100 / (float)filesize );
+ //printf( "processing :%4.2f%% ", total*100 / (float)filesize );
  //        usleep(10000);
  }
+
+sleep(1);
  printf( "file translating is completed " );
  printf( "filesize : %d, sending : %d ", filesize, total );
  
+ //if receiver got "endoffile", it will escape receiving loop
+ strcpy(buf, "endoffile");
+send(listen_sock, buf, strlen("endoffile"), 0);
+
+
  fclose(fp);
  close(listen_sock);
 

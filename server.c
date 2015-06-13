@@ -255,6 +255,11 @@ char* buf = (char*)calloc(FILE_BUFFER_SIZE, sizeof(char));
  char filename[20];
  int filesize, filenamesize ;
 
+    time_t lastTime;        
+    time_t currentTime;     //1초마다 상황 출력을 위해 사용할 시간 변수
+
+int finished = 0;       //finished = 1 means, file receving loop is to be finished
+
  FILE* fp;
  int sread, total=0;
  
@@ -309,23 +314,44 @@ listen(listen_sock, 5);
 
     printf("filename : %s, filesize : %d B\n", filename, filesize);
 
-
+        //get current time
+        time(&lastTime);
 
         printf("processing : ");
-        while( total != filesize )
+        while(!finished)
         {
             sread = recv( accp_sock, buf, BLOCK, 0 );
+
+            //만일, 파일이 모두 전송되어서 마지막 메시지가 온 것이라면 무조건 종료.
+            if(!strncmp(buf, "endoffile", 9)) 
+            {
+                    printf("Sucessfully transferred.\n");
+                    fclose(fp);      //stream 닫기
+                      total = filesize;  //다 받은 것이나 마찬가지.
+                     finished = 1;       //이제 모든 루프를 끝낸다
+                     break;          //while문 빠져나가기
+
+            }
+
 //            printf( "file is receiving now.. " );
             total += sread;
+
+               //현 시간 - 아까 기록한 시간의 차가 1 이상이면 1초가 흐른 것으로 간주.
+             if((time(&currentTime) - lastTime) >= 1)
+              {
+                  printf("Transfer status : recv[%s][%d%c , %4.2f MB / %4.2f MB]\n", filename, (int)((double)total* 100 /filesize),'%', (double)total/1000000, (double)filesize/1000000);
+                 time(&lastTime);
+                }
+
+
             buf[sread] = 0;
             fwrite( buf, 1, sread, fp);
             bzero( buf, sizeof(buf) );
-            printf( "processing : %4.2f%% ", total*100 / (float)filesize );
+            //printf( "processing : %4.2f%% ", total*100 / (float)filesize );
 
             
         }
 
-        fclose(fp);
         close(accp_sock);
         close(listen_sock);
 
@@ -356,6 +382,9 @@ int addrlen = sizeof(cliaddr);
 
  FILE* fp;
  int sread, total=0;
+
+    time_t lastTime;        
+    time_t currentTime;     //1초마다 상황 출력을 위해 사용할 시간 변수
  
     //unpack all datas
     threadArgs* args = (threadArgs*)p;
@@ -410,19 +439,43 @@ printf("filename : %s, filesize : %d B\n", filename, filesize);
 
  send( accp_sock, &filesize, sizeof(filesize), 0 );
  
- while( total != filesize )
+ //get current time
+time(&lastTime);
+
+ while(!feof(fp))
  {
  sread = fread( buf, 1, BLOCK, fp );
- printf( "file is sending now.. " );
- total += sread;
+ //printf( "file is sending now.. " );
+total += sread;
+
+//현 시간 - 아까 기록한 시간의 차가 1 이상이면 1초가 흐른 것으로 간주.
+        if((time(&currentTime) - lastTime) >= 1)
+        {
+            printf("Transfer status : send[%s][%d%c , %4.2f MB / %4.2f MB]\n", filename, (int)((double)total* 100 /filesize),'%', (double)total/1000000, (double)filesize/1000000);
+            time(&lastTime);
+        }
+
+
  buf[sread] = 0;
  send( accp_sock, buf, sread, 0 );
- printf( "processing :%4.2f%% ", total*100 / (float)filesize );
+ //printf( "processing :%4.2f%% ", total*100 / (float)filesize );
  //        usleep(10000);
  }
+
+
+
+
+
  printf( "file translating is completed " );
  printf( "filesize : %d, sending : %d ", filesize, total );
+
+sleep(1);
  
+ //if receiver got "endoffile", it will escape receiving loop
+ strcpy(buf, "endoffile");
+send(accp_sock, buf, strlen("endoffile"), 0);
+
+
  fclose(fp);
  close(accp_sock);
  close(listen_sock);
