@@ -18,24 +18,60 @@
 #define CMD_BUFFER_SIZE 128
 #define FILE_BUFFER_SIZE 2000
 
+//
+struct tranSpeed
+{
+    int putSpeed;
+    int getSpeed;
+};
+
+//스레드를 실행할 때, 매개변수로 넣을 구조체.
+typedef struct threadArgs
+{
+    char fname[MSGLEN];
+    int speed;
+    int dataSocketDes;
+    struct sockaddr_in dataAddr;
+    socklen_t data_addr_size;
+    int* threadIdx;
+} threadArgs;
+
 void ReceiveData();
 void SendData();
 
 int main(int argc, char *argv[])
 {
+    struct tranSpeed speeds[100];         //speeds for per client
+    struct threadArgs args[100 * 10];   //arguments for thread
+
+    int dataPort;         //데이터 전송용 포트는 명령어 포트에서 1씩 증가한 포트값을 사용
+    int threadIdx = 0;          //5개 스레드의 인덱스(스레드가 공유함)
+    int threadIdxFIX;           //작업을 수행하다 인덱스가 바뀌면 안되니 고정
+
+
     struct servent *servp;
     struct sockaddr_in server, remote;
     int request_sock, new_sock;
     int nfound, fd, maxfd, bytesread, addrlen;
     fd_set rmask, mask;
     static struct timeval timeout = { 5, 0 }; /* 5 seconds */
-	char fname[128];
+	char fname[128] = {0, };
+    int tempValue = 0;
+    char tempStr[64] = {0, };
     
+    int i;
+
     char buf[BUFSIZ];
     if (argc != 2) {
         (void) fprintf(stderr,"usage: %s service|port\n",argv[0]);
         exit(1);
     }
+
+    //initializtionf of speeds with 20
+    for(i = 0; i < 100; i++)
+        speeds[i].putSpeed = speeds[i].getSpeed = 20;
+
+
     if ((request_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
         perror("socket");
         exit(1);
@@ -97,7 +133,7 @@ int main(int argc, char *argv[])
             if (FD_ISSET(fd, &rmask)) {
                 /* process the data */
                 bytesread = read(fd, buf, sizeof buf - 1);
-
+                buf[bytesread] = '\0';
 				//get [filename]이라면, filename 추출 후 파일을 클라이언트에게 보내준다.
        	 if(strncmp(buf, "get", 3) == 0)
 		        {
@@ -114,6 +150,35 @@ int main(int argc, char *argv[])
             printf("[%s]을 받는 함수.\n", fname);
             //------------receive 함수 스레드로 실행 구현--------
      		   }
+
+                //sendrate (put)
+               if(strncmp(buf, "sendrate", 8) == 0)
+               {
+                    //bring integer from buffer. As for"sendrate 40", value 40 begins at buffer[9].
+                    strcpy(tempStr, buf + 9);  //extract number part
+                     tempStr[(strlen(tempStr) - 1)] = '\0';  //throw away 'K';
+
+                    speeds[fd].putSpeed = atoi(tempStr);
+
+                    printf("client %d's send : %d, recv : %d\n", fd, speeds[fd].putSpeed, speeds[fd].getSpeed);
+
+               }
+
+            //recvrate (get)
+                if(strncmp(buf, "recvrate", 8) == 0)
+               {
+                    //bring integer from buffer. As for"sendrate 40", value 40 begins at buffer[9].
+                    strcpy(tempStr, buf + 9);  //extract number part
+                    tempStr[(strlen(tempStr) - 1)] = '\0';  //throw away 'K';
+
+                    speeds[fd].getSpeed = atoi(tempStr);
+
+                    printf("client %d's send : %d, recv : %d\n", fd, speeds[fd].putSpeed, speeds[fd].getSpeed);
+
+               }
+
+
+            
 
 
                 if (bytesread<0) {

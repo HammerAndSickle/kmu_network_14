@@ -8,6 +8,9 @@
 #include <ctype.h>
 #include <unistd.h>
 
+//
+#define DEFAULT_SPEED 20
+
 int main(int argc, char *argv[])
 {
     struct hostent *hostp;
@@ -18,6 +21,13 @@ int main(int argc, char *argv[])
     fd_set rmask, xmask, mask;
     char buf[BUFSIZ];
     int nfound, bytesread;
+    char tempStr[64] = {0, };
+
+
+    //
+    int getSpeed = DEFAULT_SPEED;
+    int putSpeed = DEFAULT_SPEED;
+
     if (argc != 3) {
         (void) fprintf(stderr,"usage: %s service|port host\n",argv[0]);
         exit(1);
@@ -71,6 +81,33 @@ int main(int argc, char *argv[])
                 }
                 exit(0);
             }
+
+            buf[(strlen(buf) - 1)] = '\0';
+
+            //sendrate ***K (put)
+            if(strncmp(buf, "sendrate", 8) == 0)
+            {
+                strcpy(tempStr, buf + 9);  //extract number part
+                tempStr[(strlen(tempStr) - 1)] = '\0';  //throw away 'K';
+
+                putSpeed = atoi(tempStr);
+            }
+
+            //recvrate (get)
+            if(strncmp(buf, "recvrate", 8) == 0)
+            {
+                strcpy(tempStr, buf+ 9);
+                tempStr[(strlen(tempStr) - 1)] = '\0';  //throw away 'K';
+
+                getSpeed = atoi(tempStr);
+            }
+
+            //yout speeds
+            if(strncmp(buf, "ratecurr", 8) == 0)
+            {
+                printf("send : %d, recv : %d\n", putSpeed, getSpeed);
+            }
+
             if (write(sock, buf, strlen(buf)) < 0) {
                 perror("write");
                 exit(1);
