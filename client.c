@@ -133,6 +133,7 @@ int main(int argc, char *argv[])
 
                         memcpy(&dataPort, (int*)buf, 4);
                         args[threadIdxFIX].portNum = dataPort;
+                        args[threadIdxFIX].speed = putSpeed;
                         strcpy(args[threadIdxFIX].serverIP, argv[2]);
 
                         printf("new port for transfer : %d\n", dataPort);
@@ -159,6 +160,7 @@ int main(int argc, char *argv[])
 
                         memcpy(&dataPort, (int*)buf, 4);
                         args[threadIdxFIX].portNum = dataPort;
+                        args[threadIdxFIX].speed = getSpeed;
                         strcpy(args[threadIdxFIX].serverIP, argv[2]);
 
                         printf("new port for transfer : %d\n", dataPort);
@@ -328,7 +330,7 @@ struct sockaddr_in servaddr;
     //nKB means 1024*n Bytes
     BLOCK = 1024 * BLOCK;
 
-
+printf("newport : %d, filename : %s, speed : %d, IP : %s\n", portNum, filename, BLOCK/1024, serverIP);
 
     if((listen_sock = socket(PF_INET, SOCK_STREAM, 0)) < 0)
     {
@@ -367,6 +369,7 @@ printf("filename : %s, filesize : %d B\n", filename, filesize);
  
  while( total != filesize )
  {
+sleep(1);
  sread = fread( buf, 1, BLOCK, fp );
  printf( "file is sending now.. " );
  total += sread;

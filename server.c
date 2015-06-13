@@ -150,6 +150,7 @@ int main(int argc, char *argv[])
                                 threadIdxFIX = threadIdx;
                                 strcpy(args[threadIdxFIX].fname, fname);
                                 args[threadIdxFIX].threadIdx = &threadIdx;
+                                args[threadIdxFIX].speed = speeds[fd].getSpeed;
 
                                 threadIdx++;
 
@@ -175,6 +176,7 @@ int main(int argc, char *argv[])
                                  threadIdxFIX = threadIdx;
                                 strcpy(args[threadIdxFIX].fname, fname);
                                 args[threadIdxFIX].threadIdx = &threadIdx;
+                                args[threadIdxFIX].speed = speeds[fd].putSpeed;
 
                                 threadIdx++;
 
@@ -275,6 +277,8 @@ int addrlen = sizeof(cliaddr);
     exit(0);
     }
  
+    printf("newport : %d, filename : %s, speed : %d\n", portNum, filename, BLOCK/1024);
+
  // 에코 서버의 소켓주소 구조체 작성
  bzero((char *)&servaddr, sizeof(servaddr));
  servaddr.sin_family = AF_INET;
@@ -310,6 +314,7 @@ listen(listen_sock, 5);
         printf("processing : ");
         while( total != filesize )
         {
+            sleep(1);
             sread = recv( accp_sock, buf, BLOCK, 0 );
 //            printf( "file is receiving now.. " );
             total += sread;
