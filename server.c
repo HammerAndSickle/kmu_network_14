@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
        	                if(strncmp(buf, "get", 3) == 0)
 		        {
                                 strcpy(fname, buf + 4); //파일명 추출
-                                printf("[%s]을 보내주는 함수.\n", fname);
+                                //printf("[%s]을 보내주는 함수.\n", fname);
                                 //------------send 함수 스레드로 실행 구현---------
 
                                 threadIdxFIX = threadIdx;
@@ -169,7 +169,7 @@ int main(int argc, char *argv[])
    	                else if(strncmp(buf, "put", 3) == 0)
         	       {
                                  strcpy(fname, buf + 4); //파일명 추출
-                                 printf("[%s]을 받는 함수.\n", fname);
+                                 //printf("[%s]을 받는 함수.\n", fname);
                                 //------------receive 함수 스레드로 실행 구현--------
 
                                 
@@ -320,10 +320,9 @@ listen(listen_sock, 5);
         printf("processing : ");
         while(!finished)
         {
-            sread = recv( accp_sock, buf, BLOCK, 0 );
 
             //만일, 파일이 모두 전송되어서 마지막 메시지가 온 것이라면 무조건 종료.
-            if(!strncmp(buf, "endoffile", 9)) 
+            if(total >= filesize) 
             {
                     printf("Sucessfully transferred.\n");
                     fclose(fp);      //stream 닫기
@@ -333,7 +332,7 @@ listen(listen_sock, 5);
 
             }
 
-//            printf( "file is receiving now.. " );
+            sread = recv( accp_sock, buf, BLOCK, 0 );
             total += sread;
 
                //현 시간 - 아까 기록한 시간의 차가 1 이상이면 1초가 흐른 것으로 간주.
@@ -351,6 +350,7 @@ listen(listen_sock, 5);
 
             
         }
+
 
         close(accp_sock);
         close(listen_sock);
@@ -437,15 +437,21 @@ listen(listen_sock, 5);
 
 printf("filename : %s, filesize : %d B\n", filename, filesize);
 
- send( accp_sock, &filesize, sizeof(filesize), 0 );
+ write( accp_sock, &filesize, sizeof(filesize));
  
  //get current time
 time(&lastTime);
 
  while(!feof(fp))
  {
+
  sread = fread( buf, 1, BLOCK, fp );
- //printf( "file is sending now.. " );
+
+if(sread <= 0)
+{
+    break;
+}
+ 
 total += sread;
 
 //현 시간 - 아까 기록한 시간의 차가 1 이상이면 1초가 흐른 것으로 간주.
@@ -457,28 +463,26 @@ total += sread;
 
 
  buf[sread] = 0;
- send( accp_sock, buf, sread, 0 );
- //printf( "processing :%4.2f%% ", total*100 / (float)filesize );
- //        usleep(10000);
+ write( accp_sock, buf, sread);
+
  }
 
 
-
-
-
- printf( "file translating is completed " );
- printf( "filesize : %d, sending : %d ", filesize, total );
-
-sleep(1);
  
  //if receiver got "endoffile", it will escape receiving loop
- strcpy(buf, "endoffile");
-send(accp_sock, buf, strlen("endoffile"), 0);
+ //strcpy(buf, "endoffile");
+//write(accp_sock, buf, strlen("endoffile"));
+
 
 
  fclose(fp);
  close(accp_sock);
  close(listen_sock);
+
+
+printf( "file translating is completed == " );
+ printf( "filesize : %d, sending : %d ", filesize, total );
+
 
  (*threadIdx) = (*threadIdx) - 1;
 

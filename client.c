@@ -99,6 +99,9 @@ int main(int argc, char *argv[])
             exit(1);
         }
         if (FD_ISSET(fileno(stdin), &rmask)) {
+
+            printf(">");
+
             /* data from keyboard */
             if (!fgets(buf, sizeof buf, stdin)) {
                 if (ferror(stdin)) {
@@ -252,6 +255,8 @@ void* ReceiveData(void* p)
      servaddr.sin_addr.s_addr = inet_addr(serverIP);
      servaddr.sin_port = htons(portNum);
  
+    sleep(1);
+
     // 연결요청
      if(connect(listen_sock, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
     {
@@ -274,16 +279,11 @@ void* ReceiveData(void* p)
     printf("filename : %s, filesize : %d B\n", filename, filesize);
 
 
-
-        printf("processing : ");
         while(!finished)
         {
-            sread = recv( listen_sock, buf, BLOCK, 0 );
-//            printf( "file is receiving now.. " );
-
 
             //만일, 파일이 모두 전송되어서 마지막 메시지가 온 것이라면 무조건 종료.
-            if(!strncmp(buf, "endoffile", 9)) 
+            if(total >= filesize) 
             {
                     printf("Sucessfully transferred.\n");
                     fclose(fp);      //stream 닫기
@@ -293,14 +293,16 @@ void* ReceiveData(void* p)
 
             }
 
+            sread = recv( listen_sock, buf, BLOCK, 0 );
+
             total += sread;
             buf[sread] = 0;
             fwrite( buf, 1, sread, fp);
             bzero( buf, sizeof(buf) );
-            //printf( "processing : %4.2f%% ", total*100 / (float)filesize );
 
             
         }
+
 
         close(listen_sock);
 
@@ -348,6 +350,8 @@ struct sockaddr_in servaddr;
 
 printf("newport : %d, filename : %s, speed : %d, IP : %s\n", portNum, filename, BLOCK/1024, serverIP);
 
+sleep(1);
+
     if((listen_sock = socket(PF_INET, SOCK_STREAM, 0)) < 0)
     {
      perror("socket fail");
@@ -381,30 +385,34 @@ printf("newport : %d, filename : %s, speed : %d, IP : %s\n", portNum, filename, 
 
 printf("filename : %s, filesize : %d B\n", filename, filesize);
 
- send( listen_sock, &filesize, sizeof(filesize), 0 );
+ write( listen_sock, &filesize, sizeof(filesize));
  
  while(!feof(fp))
  {
+
  sread = fread( buf, 1, BLOCK, fp );
- //printf( "file is sending now.. " );
+
+if(sread <= 0)
+{
+    break;
+}
+
  total += sread;
  buf[sread] = 0;
- send( listen_sock, buf, sread, 0 );
- //printf( "processing :%4.2f%% ", total*100 / (float)filesize );
- //        usleep(10000);
+ write( listen_sock, buf, sread);
  }
-
-sleep(1);
- printf( "file translating is completed " );
- printf( "filesize : %d, sending : %d ", filesize, total );
  
  //if receiver got "endoffile", it will escape receiving loop
- strcpy(buf, "endoffile");
-send(listen_sock, buf, strlen("endoffile"), 0);
+ //strcpy(buf, "endoffile");
+//write(listen_sock, buf, strlen("endoffile"));
 
 
  fclose(fp);
  close(listen_sock);
+
+printf( "file translating is completed == " );
+ printf( "filesize : %d, sending : %d ", filesize, total );
+
 
  (*threadIdx) = (*threadIdx) - 1;
 
