@@ -38,7 +38,7 @@ void* SendData(void* p);
 
 int main(int argc, char *argv[])
 {
-    tranSpeed speeds[100];         //speeds for per client
+    tranSpeed speeds[USABLE_THREADS];         //speeds for per client
     threadArgs args[USABLE_THREADS];   //arguments for thread
     pthread_t threads[USABLE_THREADS]; //threads
 
@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
     int nfound, fd, maxfd, bytesread, addrlen;
     fd_set rmask, mask;
     static struct timeval timeout = { 5, 0 }; /* 5 seconds */
-	char fname[128] = {0, };
+    char fname[128] = {0, };
     int tempValue = 0;
     char tempStr[64] = {0, };
     
@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
     }
 
     //initializtionf of speeds with 20
-    for(i = 0; i < 100; i++)
+    for(i = 0; i < USABLE_THREADS; i++)
         speeds[i].putSpeed = speeds[i].getSpeed = 20;
 
 
@@ -136,13 +136,13 @@ int main(int argc, char *argv[])
                 /* process the data */
                 bytesread = read(fd, buf, sizeof buf - 1);
                 buf[bytesread] = '\0';
-			
+            
 
 
 
                         //get [filename]이라면, filename 추출 후 파일을 클라이언트에게 보내준다.
-       	                if(strncmp(buf, "get", 3) == 0)
-		        {
+                        if(strncmp(buf, "get", 3) == 0)
+                {
                                 strcpy(fname, buf + 4); //파일명 추출
                                 //printf("[%s]을 보내주는 함수.\n", fname);
                                 //------------send 함수 스레드로 실행 구현---------
@@ -163,11 +163,11 @@ int main(int argc, char *argv[])
 
                                 pthread_create(&threads[threadIdxFIX], NULL, SendData, (void*)&args[threadIdxFIX]);
             
-        		}
+                }
         
                         //put [filename]이라면, filename 추출 후 파일을 클라이언트에게서 받는다.
-   	                else if(strncmp(buf, "put", 3) == 0)
-        	       {
+                    else if(strncmp(buf, "put", 3) == 0)
+                   {
                                  strcpy(fname, buf + 4); //파일명 추출
                                  //printf("[%s]을 받는 함수.\n", fname);
                                 //------------receive 함수 스레드로 실행 구현--------
@@ -189,7 +189,7 @@ int main(int argc, char *argv[])
 
                                 pthread_create(&threads[threadIdxFIX], NULL, ReceiveData, (void*)&args[threadIdxFIX]);
                                 
-     		          }
+                      }
 
                 //sendrate (put)
                else if(strncmp(buf, "sendrate", 8) == 0)

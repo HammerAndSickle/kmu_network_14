@@ -40,10 +40,11 @@ int main(int argc, char *argv[])
     char buf[BUFSIZ];
     char fname[MSGLEN] = {0, };
     int nfound, bytesread;
-    char tempStr[64] = {0, };
-    char portNum[10] = "temp";
-    char hostNum[10] ;
-    char command[10] ;
+    char tempStr[MSGLEN] = {0, };
+    char portNum[MSGLEN] = "temp";
+    char hostNum[MSGLEN] = {0, };
+    char command[MSGLEN] = {0, };
+    char* TOKEN = NULL;
 
     threadArgs args[USABLE_THREADS];   //arguments for thread
     pthread_t threads[USABLE_THREADS]; //threads
@@ -68,32 +69,62 @@ int main(int argc, char *argv[])
 
     for (;;)
     {
-        fprintf(stderr, ">");
-        scanf("%s",command);
+        printf("\n\n<usage 1> connect [IP/HOST] [PORTNUM]\n");
+        printf("<usage 2> [STUDENTID]\n");
+        printf("<usage 3> quit\n\n\n");
+        
+
+        fprintf(stderr, "> ");
+        fflush(stderr);
+        fgets(command, MSGLEN, stdin);
+        command[strlen(command) - 1] = '\0';    //deleting \n
 
         if ( strncmp(command, "quit", 4) == 0 )
             exit(0);
         else if ( strncmp(command, "connect", 7) == 0)
         {
-            fprintf(stderr, "put in host : ");
-            scanf("%s", hostNum);
+            strtok(command, " ");
+            TOKEN = strtok(NULL, " ");
+            strcpy(hostNum, TOKEN);
+
+            TOKEN = strtok(NULL, " ");
+            strcpy(portNum, TOKEN);
+
             if ((hostp = gethostbyname(hostNum)) == 0) 
             {
-            fprintf(stderr,"%s: unknown host\n",argv[2]);
+            fprintf(stderr,"%s: unknown host\n",hostNum);
             exit(1);
             }
 
-            while (!isdigit(portNum[0]))
+            //printf("<<<<%s>>>>\n", inet_ntoa(*(struct in_addr*)hostp->h_addr_list[0]));
+
+            /*while (!isdigit(portNum[0]))
             {
                 fprintf(stderr, "put in port number : ");
                 scanf("%s", portNum);
-            }
+            }*/
             static struct servent s;
             servp = &s;
-            s.s_port = htons((u_short)atoi(argv[1]));
+            s.s_port = htons((u_short)atoi(portNum));
             break;
         }
+
+        else if(strncmp(command, "20133265", 8) == 0)
+        {
+            printf("\n\n================<20133265 CHA DONG MIN>===================\n");
+            printf("* Implemented pthread in SendData, ReceiveData\n");
+            printf("* Implemented struct tranSpeed[] \n");
+            printf("* Little bit of interface command processing\n");
+            printf("=========================================================\n\n");
+        }
+
+        printf("\n\n[WORNG COMMAND]");
+
+
     }
+
+
+
     // if (isdigit(argv[1][0])) {
     //     static struct servent s;
     //     servp = &s;
@@ -115,6 +146,9 @@ int main(int argc, char *argv[])
         perror("connect");
         exit(1);
     }
+
+    printf("[connected to server..]\n");
+
     FD_ZERO(&mask);
     FD_SET(sock, &mask);
     FD_SET(fileno(stdin), &mask);
@@ -131,8 +165,11 @@ int main(int argc, char *argv[])
             exit(1);
         }
         if (FD_ISSET(fileno(stdin), &rmask)) {
-            fflush(stdout);
-            fprintf(stderr, ">");
+            //fflush(stderr);
+            printf("\n\n<usage 1> put [FILENAME]\n");
+            printf("<usage 2> get [FILENAME]\n");
+            printf("<usage 3> close \n\n");
+            printf("> ");
 
             /* data from keyboard */
             if (!fgets(buf, sizeof buf, stdin)) {
@@ -172,7 +209,7 @@ int main(int argc, char *argv[])
                         memcpy(&dataPort, (int*)buf, 4);
                         args[threadIdxFIX].portNum = dataPort;
                         args[threadIdxFIX].speed = putSpeed;
-                        strcpy(args[threadIdxFIX].serverIP, argv[2]);
+                        strcpy(args[threadIdxFIX].serverIP, hostNum);
 
                         printf("new port for transfer : %d\n", dataPort);
 
@@ -199,7 +236,7 @@ int main(int argc, char *argv[])
                         memcpy(&dataPort, (int*)buf, 4);
                         args[threadIdxFIX].portNum = dataPort;
                         args[threadIdxFIX].speed = getSpeed;
-                        strcpy(args[threadIdxFIX].serverIP, argv[2]);
+                        strcpy(args[threadIdxFIX].serverIP, hostNum);
 
                         printf("new port for transfer : %d\n", dataPort);
 
@@ -249,6 +286,8 @@ int main(int argc, char *argv[])
 void* ReceiveData(void* p)
 {
     struct sockaddr_in servaddr;
+    struct hostent *hostp;
+
     int listen_sock, // 소켓번호
     nbyte, nbuf;
     char* buf = (char*)calloc(FILE_BUFFER_SIZE, sizeof(char));
@@ -283,12 +322,20 @@ void* ReceiveData(void* p)
      perror("socket fail");
      exit(0);
      }
- 
+
+
      // 에코 서버의 소켓주소 구조체 작성
-     bzero((char *)&servaddr, sizeof(servaddr));
-     servaddr.sin_family = AF_INET;
-     servaddr.sin_addr.s_addr = inet_addr(serverIP);
-     servaddr.sin_port = htons(portNum);
+     hostp = gethostbyname(serverIP);
+
+    memset((void *) &servaddr, 0, sizeof servaddr);
+    servaddr.sin_family = AF_INET;
+    memcpy((void *) &servaddr.sin_addr, hostp->h_addr, hostp->h_length);
+    servaddr.sin_port = htons(portNum);
+
+     // 에코 서버의 소켓주소 구조체 작성
+     //servaddr.sin_family = AF_INET;
+    // servaddr.sin_addr.s_addr = inet_addr(serverIP);
+     //servaddr.sin_port = htons(portNum);
  
     sleep(1);
 
@@ -357,6 +404,8 @@ void* ReceiveData(void* p)
  void* SendData(void *p)
  {
     struct sockaddr_in servaddr;
+    struct hostent *hostp;
+
     int listen_sock, // 소켓번호
     nbyte, nbuf;
     char* buf = (char*)calloc(FILE_BUFFER_SIZE, sizeof(char));
@@ -394,11 +443,16 @@ void* ReceiveData(void* p)
     }
  
      // 에코 서버의 소켓주소 구조체 작성
-     bzero((char *)&servaddr, sizeof(servaddr));
-     servaddr.sin_family = AF_INET;
-     servaddr.sin_addr.s_addr = inet_addr(serverIP);
-     servaddr.sin_port = htons(portNum);
+     hostp = gethostbyname(serverIP);
+
+    memset((void *) &servaddr, 0, sizeof servaddr);
+    servaddr.sin_family = AF_INET;
+    memcpy((void *) &servaddr.sin_addr, hostp->h_addr, hostp->h_length);
+    servaddr.sin_port = htons(portNum);
  
+    sleep(1);
+
+
     // 연결요청
      if(connect(listen_sock, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
     {
