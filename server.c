@@ -30,6 +30,7 @@ typedef struct threadArgs
     char fname[MSGLEN];
     int speed;
     int portNum;
+    int clientFD;
     int* threadIdx;
 } threadArgs;
 
@@ -53,7 +54,7 @@ int main(int argc, char *argv[])
     int nfound, fd, maxfd, bytesread, addrlen;
     fd_set rmask, mask;
     static struct timeval timeout = { 5, 0 }; /* 5 seconds */
-    char fname[128] = {0, };
+	char fname[128] = {0, };
     int tempValue = 0;
     char tempStr[64] = {0, };
     
@@ -136,13 +137,13 @@ int main(int argc, char *argv[])
                 /* process the data */
                 bytesread = read(fd, buf, sizeof buf - 1);
                 buf[bytesread] = '\0';
-            
+			
 
 
 
                         //get [filename]이라면, filename 추출 후 파일을 클라이언트에게 보내준다.
-                        if(strncmp(buf, "get", 3) == 0)
-                {
+       	                if(strncmp(buf, "get", 3) == 0)
+		        {
                                 strcpy(fname, buf + 4); //파일명 추출
                                 //printf("[%s]을 보내주는 함수.\n", fname);
                                 //------------send 함수 스레드로 실행 구현---------
@@ -151,6 +152,7 @@ int main(int argc, char *argv[])
                                 strcpy(args[threadIdxFIX].fname, fname);
                                 args[threadIdxFIX].threadIdx = &threadIdx;
                                 args[threadIdxFIX].speed = speeds[fd].getSpeed;
+                                args[threadIdxFIX].clientFD = fd;
 
                                 threadIdx++;
 
@@ -163,11 +165,11 @@ int main(int argc, char *argv[])
 
                                 pthread_create(&threads[threadIdxFIX], NULL, SendData, (void*)&args[threadIdxFIX]);
             
-                }
+        		}
         
                         //put [filename]이라면, filename 추출 후 파일을 클라이언트에게서 받는다.
-                    else if(strncmp(buf, "put", 3) == 0)
-                   {
+   	                else if(strncmp(buf, "put", 3) == 0)
+        	       {
                                  strcpy(fname, buf + 4); //파일명 추출
                                  //printf("[%s]을 받는 함수.\n", fname);
                                 //------------receive 함수 스레드로 실행 구현--------
@@ -177,6 +179,7 @@ int main(int argc, char *argv[])
                                 strcpy(args[threadIdxFIX].fname, fname);
                                 args[threadIdxFIX].threadIdx = &threadIdx;
                                 args[threadIdxFIX].speed = speeds[fd].putSpeed;
+                                args[threadIdxFIX].clientFD = fd;
 
                                 threadIdx++;
 
@@ -189,7 +192,7 @@ int main(int argc, char *argv[])
 
                                 pthread_create(&threads[threadIdxFIX], NULL, ReceiveData, (void*)&args[threadIdxFIX]);
                                 
-                      }
+     		          }
 
                 //sendrate (put)
                else if(strncmp(buf, "sendrate", 8) == 0)
@@ -259,6 +262,7 @@ char* buf = (char*)calloc(FILE_BUFFER_SIZE, sizeof(char));
     time_t currentTime;     //1초마다 상황 출력을 위해 사용할 시간 변수
 
 int finished = 0;       //finished = 1 means, file receving loop is to be finished
+int clientFD;
 
  FILE* fp;
  int sread, total=0;
@@ -271,6 +275,7 @@ int finished = 0;       //finished = 1 means, file receving loop is to be finish
 
     strcpy(filename, args->fname); //filename
     threadIdx = args->threadIdx;
+    clientFD = args->clientFD;
 
     //nKB means 1024*n Bytes
     BLOCK = 1024 * BLOCK;
@@ -338,7 +343,7 @@ listen(listen_sock, 5);
                //현 시간 - 아까 기록한 시간의 차가 1 이상이면 1초가 흐른 것으로 간주.
              if((time(&currentTime) - lastTime) >= 1)
               {
-                  printf("Transfer status : recv[%s][%d%c , %4.2f MB / %4.2f MB]\n", filename, (int)((double)total* 100 /filesize),'%', (double)total/1000000, (double)filesize/1000000);
+                  printf("Transfer status : recv[%s][%d%c , %4.2f MB / %4.2f MB] from socket %d\n", filename, (int)((double)total* 100 /filesize),'%', (double)total/1000000, (double)filesize/1000000, clientFD);
                  time(&lastTime);
                 }
 
@@ -379,6 +384,7 @@ int addrlen = sizeof(cliaddr);
  char* buf = (char*)calloc(FILE_BUFFER_SIZE, sizeof(char));
  char filename[20];
  int filesize, filenamesize ;
+int clientFD;
 
  FILE* fp;
  int sread, total=0;
@@ -394,6 +400,7 @@ int addrlen = sizeof(cliaddr);
 
     strcpy(filename, args->fname); //filename
     threadIdx = args->threadIdx;
+    clientFD = args->clientFD;
 
     //nKB means 1024*n Bytes
     BLOCK = 1024 * BLOCK;
@@ -445,25 +452,33 @@ time(&lastTime);
  while(!feof(fp))
  {
 
- sread = fread( buf, 1, BLOCK, fp );
+        //현 시간 - 아까 기록한 시간의 차가 1 이상이면 1초가 흐른 것으로 간주.
+        if((time(&currentTime) - lastTime) < 1)
+            continue;
 
-if(sread <= 0)
-{
-    break;
-}
+        printf("Transfer status : recv[%s][%d%c , %4.2f MB / %4.2f MB] from socket %d\n", filename, (int)((double)total* 100 /filesize),'%', (double)total/1000000, (double)filesize/1000000, clientFD);
+
+        sread = fread( buf, 1, BLOCK, fp );
+
+        if(sread <= 0)
+        {
+             break;
+        }
  
-total += sread;
+        total += sread;
 
 //현 시간 - 아까 기록한 시간의 차가 1 이상이면 1초가 흐른 것으로 간주.
-        if((time(&currentTime) - lastTime) >= 1)
+/*        if((time(&currentTime) - lastTime) >= 1)
         {
             printf("Transfer status : send[%s][%d%c , %4.2f MB / %4.2f MB]\n", filename, (int)((double)total* 100 /filesize),'%', (double)total/1000000, (double)filesize/1000000);
             time(&lastTime);
         }
+*/
 
+        buf[sread] = 0;
+        write( accp_sock, buf, sread);
 
- buf[sread] = 0;
- write( accp_sock, buf, sread);
+        time(&lastTime);
 
  }
 

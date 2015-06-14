@@ -147,7 +147,7 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    printf("[connected to server..]\n");
+    printf("[connected to server.. press ENTER key]\n");
 
     FD_ZERO(&mask);
     FD_SET(sock, &mask);
@@ -367,7 +367,7 @@ void* ReceiveData(void* p)
             //만일, 파일이 모두 전송되어서 마지막 메시지가 온 것이라면 무조건 종료.
             if(total >= filesize) 
             {
-                    printf("Sucessfully transferred.\n");
+                    printf("Sucessfully transferred. press ENTER key\n");
                     fclose(fp);      //stream 닫기
                       total = filesize;  //다 받은 것이나 마찬가지.
                      finished = 1;       //이제 모든 루프를 끝낸다
@@ -413,6 +413,9 @@ void* ReceiveData(void* p)
     char filename[20];
     int filesize=0;
     int total=0, sread;
+
+    time_t lastTime;        
+    time_t currentTime;     //1초마다 nKB 위해 사용할 시간 변수
 
 
     FILE* fp;
@@ -476,27 +479,36 @@ void* ReceiveData(void* p)
 
     write( listen_sock, &filesize, sizeof(filesize));
  
+    time(&lastTime);
+
     while(!feof(fp))
     {
+        if((time(&currentTime) - lastTime) < 1)
+            continue;
 
-        sread = fread( buf, 1, BLOCK, fp );
+        else {
 
-        if(sread <= 0)
-        {
-            break;
+            sread = fread( buf, 1, BLOCK, fp );
+
+            if(sread <= 0)
+            {
+                break;
+            }
+
+            total += sread;
+            buf[sread] = 0;
+            write( listen_sock, buf, sread);
+
+            time(&lastTime);
+
         }
-
-        total += sread;
-        buf[sread] = 0;
-        write( listen_sock, buf, sread);
     }
  
     //if receiver got "endoffile", it will escape receiving loop
     //strcpy(buf, "endoffile");
     //write(listen_sock, buf, strlen("endoffile"));
 
-    printf( "file translating is completed == " );
-    printf( "filesize : %d, sending : %d \n", filesize, total );
+    printf("Sucessfully transferred. press ENTER key\n");
 
     fclose(fp);
     close(listen_sock);
