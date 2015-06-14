@@ -117,15 +117,6 @@ int main(int argc, char *argv[])
             printf("* Little bit of interface command processing\n");
             printf("=========================================================\n\n");
         }
-        else if ( strncmp(command, "20113311", 8) == 0)
-        {
-            printf("\n\n");
-            printf("********************<20113311 Jae Yeol Lee>********************\n");
-            printf("- Helped implementing functions SendData, ReceiveData\n");
-            printf("- Helped implementing client interfaces\n");
-            printf("- Helped copying multiflexing from source code from Prof. Ver\n");
-            printf("***************************************************************\n");   
-        }
 
         printf("\n\n[WORNG COMMAND]");
 
